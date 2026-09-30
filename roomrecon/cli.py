@@ -52,9 +52,6 @@ def main(argv=None):
 
 def reconstruct(args, calibrate=False):
     settings.use_modes = args.use_modes
-    if not args.inputs and not any(config.AUDIO_DIR.glob("*.wav")) and config.VIDEO_DIR.exists():
-        print("Extracting audio from data/videos ...")
-        extract_videos()
     paths = discover_inputs(args.inputs)
     if not paths:
         sys.exit("No input recordings found.")

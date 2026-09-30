@@ -67,22 +67,26 @@ Every room leaves a fingerprint on sound. Clap your hands and the sound bounces 
 
 ## Requirements
 
-- Windows with **Python 3.10+** (the batch files install the rest)
-- `numpy`, `scipy`, `matplotlib`, `av` (see [`requirements.txt`](requirements.txt))
-- An internet connection when opening the 3D preview (three.js is loaded from a CDN)
+- Windows with **Python 3.10+**. On first start, `Start.bat` creates a private environment in `.venv/` and installs [`requirements.txt`](requirements.txt) there (numpy, scipy, matplotlib, av).
+- An internet connection when opening the 3D view (three.js is loaded from a CDN)
 
 ## Running it
 
-1. Put the recordings (iPhone `.MOV` videos or `.wav` files) in `data/videos/`.
-2. Double-click **`reconstruct.bat`**.
+1. Put the recordings (iPhone `.MOV` / `.MP4` videos or `.wav` files) in `data/videos/`.
+2. Double-click **`Start.bat`** and press **1**.
 
-It extracts the audio, analyses every recording and opens `output/room_3d.html`.
+The program analyses every recording in `data/videos` (extracting the audio of new or changed videos automatically) and opens the 3D view in the browser.
 
-```bat
-reconstruct.bat                                   :: everything in data\videos
-reconstruct.bat data\videos\clap1.MOV other\      :: specific files or folders (drag and drop works too)
-python -m roomrecon --help                        :: all options
 ```
+  [1]  Reconstruct the room
+  [2]  Open the last result
+  [3]  Calibrate with a measured room
+  [4]  Decode iPhone Spatial Audio on GitHub (no Mac needed)
+  [5]  Help
+```
+
+- **Drag and drop:** drop files or folders onto `Start.bat` to analyse just those.
+- **Command line (advanced):** `python -m roomrecon --help` lists every option.
 
 | Output | What it is |
 |---|---|
@@ -138,19 +142,17 @@ Using the echo directions to measure the room's length and width was tested thre
   ```
 - **Without a Mac**, use a free GitHub-hosted Mac:
   1. Create an empty, private repository.
-  2. Run:
-     ```bat
-     decode_spatial_audio_on_github.bat https://github.com/<you>/<repo>.git
-     ```
+  2. Choose **4** in `Start.bat` and paste its URL.
   3. In the repository's **Actions** tab, download the `spatial-audio` artifact.
   4. Unzip it into `data/spatial/`.
+- **In this repository**, pushing new videos to `data/videos/` decodes them automatically: the result is committed to `data/spatial/`.
 
 ## Calibration
 
-`calibrate.bat` compares the analysis with the ground-truth file and writes `config/calibration.json`, which every later run applies.
+Choose **3** in `Start.bat`. It compares the analysis with the ground-truth file and writes `config/calibration.json`, which every later run applies.
 
-- **Default:** keeps only corrections that carry over to other rooms (the distance scale).
-- **`calibrate.bat --same-room`:** also copies this room's size into the model. Use it only for more recordings of the same room.
+- **Answer N (default):** keeps only corrections that carry over to other rooms (the distance scale).
+- **Answer Y:** also copies this room's size into the model. Use it only for more recordings of the same room; the report then labels length and width as taken from the calibration.
 
 <details>
 <summary>Ground-truth file format</summary>
@@ -172,10 +174,9 @@ phone_right: 0 0 1             Z 12,25
 ## Layout
 
 ```
-reconstruct.bat                     run the reconstruction
-calibrate.bat                       calibrate against a measured room
-decode_spatial_audio_on_github.bat  decode Spatial Audio on a GitHub-hosted Mac
-roomrecon/                          Python package  (python -m roomrecon)
+Start.bat             double-click: menu (reconstruct, results, calibration, Spatial Audio, help)
+requirements.txt      Python packages
+roomrecon/            Python package  (python -m roomrecon)
 ├── cli.py            command line and pipeline
 ├── audio.py          videos, WAV, ambisonics, audio extraction
 ├── analysis.py       event detection, RT60, DRR, stereo side, echoes
@@ -189,8 +190,13 @@ roomrecon/                          Python package  (python -m roomrecon)
 ├── preview.py        room_3d.html
 └── templates/        3D view template
 config/               calibration.json
-data/                 videos/ · audios/ · spatial/ · ground_truth/
-tools/                decode_spatial_audio.swift
+data/
+├── videos/           your recordings go here
+├── audios/           extracted audio (automatic)
+├── spatial/          decoded Spatial Audio, <name>_foa.wav (optional)
+└── ground_truth/     measured room and positions (optional)
+tools/                Spatial Audio decoder (macOS) and its GitHub upload helper
+output/               results: room_3d.html, report.png, summary.txt, room.json, audio
 assets/               banner and logos
 .github/workflows/    Spatial Audio decoding job
 ```

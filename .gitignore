@@ -23,3 +23,6 @@ desktop.ini
 # Logs / temporary files
 *.log
 *.tmp
+
+# Local Python environment created by Start.bat
+.venv/

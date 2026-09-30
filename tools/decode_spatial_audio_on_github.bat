@@ -1,16 +1,17 @@
 @echo off
 rem Decode the Spatial Audio track of data\videos\*.MOV on a free GitHub-hosted Mac (no Mac needed).
 rem
+rem Easiest: Start.bat -> [4]. Or directly:
 rem   1. On github.com create a new EMPTY PRIVATE repository (no README).
-rem   2. Run:  decode_spatial_audio_on_github.bat https://github.com/<you>/<repo>.git
+rem   2. Run:  tools\decode_spatial_audio_on_github.bat https://github.com/<you>/<repo>.git
 rem   3. Open the repository's "Actions" tab, wait for "Decode Spatial Audio" to finish (a few minutes),
 rem      open the run and download the "spatial-audio" artifact.
-rem   4. Unzip it into data\spatial\ and run reconstruct.bat again.
+rem   4. Unzip it into data\spatial\ and reconstruct again (Start.bat -> [1]).
 rem
 rem Only the videos, the decoder and the workflow are uploaded. The videos contain the phone's GPS
 rem location in their metadata - keep the repository private and delete it afterwards.
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 if "%~1"=="" (
     echo Usage: %~nx0 https://github.com/^<you^>/^<repo^>.git

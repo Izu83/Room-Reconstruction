@@ -82,7 +82,24 @@ def extract_videos(video_dir: Path = config.VIDEO_DIR, audio_dir: Path = config.
     return written
 
 
+def sync_videos(video_dir: Path = config.VIDEO_DIR, audio_dir: Path = config.AUDIO_DIR) -> list[Path]:
+    """Audio for exactly the videos in video_dir; extracts new or changed videos only."""
+    videos = sorted(p for p in video_dir.iterdir() if p.suffix.lower() in config.VIDEO_EXTS) if video_dir.exists() else []
+    audio_dir.mkdir(parents=True, exist_ok=True)
+    out = []
+    for src in videos:
+        dst = audio_dir / (src.stem + ".wav")
+        if not dst.exists() or dst.stat().st_mtime < src.stat().st_mtime:
+            sr, audio = decode_video_audio(src)
+            wavfile.write(str(dst), sr, audio.T)
+            print(f"  extracted {src.name} -> {dst.relative_to(config.ROOT)}")
+        out.append(dst)
+    return out
+
+
 def discover_inputs(inputs: list[str]) -> list[Path]:
+    """Explicit files/folders if given; otherwise every video in data/videos (audio extracted as needed),
+    or, when there are no videos, the WAV files in data/audios."""
     if inputs:
         paths = []
         for p in map(Path, inputs):
@@ -91,9 +108,7 @@ def discover_inputs(inputs: list[str]) -> list[Path]:
             else:
                 paths.append(p)
         return paths
-    audios = sorted(config.AUDIO_DIR.glob("*.wav")) if config.AUDIO_DIR.exists() else []
-    if audios:
-        return audios
-    if not config.VIDEO_DIR.exists():
-        return []
-    return sorted(q for q in config.VIDEO_DIR.iterdir() if q.suffix.lower() in config.VIDEO_EXTS)
+    synced = sync_videos()
+    if synced:
+        return synced
+    return sorted(config.AUDIO_DIR.glob("*.wav")) if config.AUDIO_DIR.exists() else []
