@@ -1,0 +1,15 @@
+# Approximate positions read off the hand sketch (not exact).
+# Origin = bottom-right corner of the sketch (floor level).
+# X = along the 6.14 m wall, Z = along the 12.25 m wall, Y = height above the floor
+# (converted from "distance from ceiling": height = 2.40 - value).
+# Phone lies on the table tennis table (~0.75 m); the person is ~1.70 m tall.
+# "video N" applies to both clapN and yellN (calp2 = clap 2).
+room: 6.14 2.40 12.25
+phone: 2.56 0.75 4.38
+video 1: 1.27 1.70 8.11
+video 2: 4.88 1.70 10.12
+video 3: 5.68 1.70 0.61
+video 4: 3.09 1.70 11.57
+# Direction the phone's RIGHT stereo channel points (same axes). Not measured: inferred from the recordings
+# (right channel louder for the people at the high-Z end). Replace it if you know how the phone lay.
+phone_right: 0 0 1
