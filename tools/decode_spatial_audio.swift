@@ -52,48 +52,76 @@ func decode(_ input: URL, to output: URL) async throws -> (Int, Double) {
     }
     guard let track = spatial else { throw DecodeError.noSpatialTrack }
 
+    // Describe the source track in the log (helps when a macOS version decodes differently).
+    for desc in try await track.load(.formatDescriptions) {
+        if let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(desc)?.pointee {
+            print("  source: \(fourCC(asbd.mFormatID)), \(asbd.mChannelsPerFrame) ch, \(Int(asbd.mSampleRate)) Hz")
+        }
+    }
+
     var layout = AudioChannelLayout()
     layout.mChannelLayoutTag = kHOA_ACN_SN3D | 4
     let layoutData = Data(bytes: &layout, count: MemoryLayout<AudioChannelLayout>.size)
-    let sampleRate = 48000
-    let base: [String: Any] = [
+    let pcm: [String: Any] = [
         AVFormatIDKey: kAudioFormatLinearPCM,
         AVLinearPCMBitDepthKey: 32,
         AVLinearPCMIsFloatKey: true,
         AVLinearPCMIsBigEndianKey: false,
         AVLinearPCMIsNonInterleaved: false,
-        AVSampleRateKey: sampleRate,
-        AVNumberOfChannelsKey: 4,
     ]
-    // Ask for ambisonics (HOA ACN/SN3D, 4 channels) explicitly; if the system refuses that layout,
-    // fall back to the decoder's native 4-channel output.
-    var withLayout = base
-    withLayout[AVChannelLayoutKey] = layoutData
-    var reader: AVAssetReader?
-    var out: AVAssetReaderTrackOutput?
-    var lastError = "output settings not supported"
-    for settings in [withLayout, base] {
-        let r = try AVAssetReader(asset: asset)
-        let o = AVAssetReaderTrackOutput(track: track, outputSettings: settings)
-        o.alwaysCopiesSampleData = false
-        guard r.canAdd(o) else { continue }
-        r.add(o)
-        if r.startReading() { reader = r; out = o; break }
-        lastError = r.error?.localizedDescription ?? lastError
-    }
-    guard let reader, let out else { throw DecodeError.readerFailed(lastError) }
+    // Output formats to try, best first. A variant is accepted only if it produces real (non-silent) audio.
+    var hoa = pcm; hoa[AVNumberOfChannelsKey] = 4; hoa[AVChannelLayoutKey] = layoutData
+    var four = pcm; four[AVNumberOfChannelsKey] = 4
+    let native = pcm
+    let variants: [(String, [String: Any])] = [("HOA ACN/SN3D 4ch", hoa), ("4ch", four), ("native", native)]
 
-    var samples: [Float] = []
-    while let buf = out.copyNextSampleBuffer() {
-        guard let block = CMSampleBufferGetDataBuffer(buf) else { continue }
-        let n = CMBlockBufferGetDataLength(block)
-        var chunk = [Float](repeating: 0, count: n / 4)
-        chunk.withUnsafeMutableBytes { _ = CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: n, destination: $0.baseAddress!) }
-        samples.append(contentsOf: chunk)
+    var lastError = "no output format produced audio"
+    for (label, settings) in variants {
+        let reader = try AVAssetReader(asset: asset)
+        let out = AVAssetReaderTrackOutput(track: track, outputSettings: settings)
+        out.alwaysCopiesSampleData = true
+        guard reader.canAdd(out) else { print("  \(label): not supported"); continue }
+        reader.add(out)
+        guard reader.startReading() else {
+            lastError = reader.error?.localizedDescription ?? lastError
+            print("  \(label): cannot start (\(lastError))"); continue
+        }
+        var samples: [Float] = []
+        var channels = 0
+        var sampleRate = 48000
+        while let buf = out.copyNextSampleBuffer() {
+            if channels == 0, let fd = CMSampleBufferGetFormatDescription(buf),
+               let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(fd)?.pointee {
+                channels = Int(asbd.mChannelsPerFrame)
+                sampleRate = Int(asbd.mSampleRate)
+            }
+            guard let block = CMSampleBufferGetDataBuffer(buf) else { continue }
+            let n = CMBlockBufferGetDataLength(block)
+            var chunk = [Float](repeating: 0, count: n / 4)
+            chunk.withUnsafeMutableBytes { _ = CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: n, destination: $0.baseAddress!) }
+            samples.append(contentsOf: chunk)
+        }
+        if reader.status == .failed {
+            lastError = reader.error?.localizedDescription ?? "unknown"
+            print("  \(label): failed while reading (\(lastError))"); continue
+        }
+        let peak = samples.reduce(Float(0)) { max($0, abs($1)) }
+        let frames = channels > 0 ? samples.count / channels : 0
+        print("  \(label): \(channels) ch, \(frames) frames, peak \(String(format: "%.5f", peak))")
+        if frames == 0 || peak < 1e-5 {
+            lastError = "\(label) produced silence"
+            continue
+        }
+        if channels != 4 { print("  warning: \(channels) channels instead of 4 - not first-order ambisonics") }
+        try writeWav(samples, channels: channels, sampleRate: sampleRate, to: output)
+        return (channels, Double(frames) / Double(sampleRate))
     }
-    if reader.status == .failed { throw DecodeError.readerFailed(reader.error?.localizedDescription ?? "unknown") }
-    try writeWav(samples, channels: 4, sampleRate: sampleRate, to: output)
-    return (4, Double(samples.count / 4) / Double(sampleRate))
+    throw DecodeError.readerFailed(lastError)
+}
+
+func fourCC(_ v: UInt32) -> String {
+    let bytes = [24, 16, 8, 0].map { UInt8((v >> UInt32($0)) & 0xff) }
+    return String(bytes: bytes, encoding: .ascii) ?? String(v)
 }
 
 let args = CommandLine.arguments
