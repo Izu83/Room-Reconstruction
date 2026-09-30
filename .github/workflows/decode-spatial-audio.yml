@@ -13,7 +13,12 @@ on:
 
 jobs:
   decode:
-    runs-on: macos-15
+    # Recordings from newer iOS versions may need a newer macOS APAC decoder, so try several.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, macos-15]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
 
@@ -31,12 +36,12 @@ jobs:
         shell: bash
         run: |
           if [ -f decode.log ]; then
-            msg=$(tail -c 3500 decode.log | tr -d '\r' | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
-            echo "::notice title=Decoder log::${msg}"
+            msg=$( (sw_vers; tail -c 3300 decode.log) | tr -d '\r' | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::notice title=Decoder log (${{ matrix.os }})::${msg}"
           fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: spatial-audio
+          name: spatial-audio-${{ matrix.os }}
           path: data/spatial/*.wav
           if-no-files-found: error
