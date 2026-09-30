@@ -1,0 +1,26 @@
+# Decodes the iPhone Spatial Audio (APAC) track of every video in data/videos on a GitHub-hosted Mac
+# and publishes the 4-channel ambisonics WAVs as the "spatial-audio" artifact.
+# Runs automatically on every push, or manually from the Actions tab.
+name: Decode Spatial Audio
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  decode:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show system
+        run: sw_vers && swift --version
+
+      - name: Decode APAC to first-order ambisonics
+        run: swift tools/decode_spatial_audio.swift data/videos data/spatial
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spatial-audio
+          path: data/spatial/*.wav
+          if-no-files-found: error

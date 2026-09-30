@@ -1,0 +1,78 @@
+{
+  "prior_length": [
+    4.5,
+    0.6
+  ],
+  "prior_width": [
+    4.5,
+    0.6
+  ],
+  "prior_height": [
+    2.8,
+    0.25
+  ],
+  "prior_absorption": [
+    0.12,
+    0.6
+  ],
+  "distance_scale": 1.2143794894730349,
+  "mode": "general",
+  "calibrated_on": [
+    "calp2",
+    "clap1",
+    "clap3",
+    "clap4",
+    "yell1",
+    "yell2",
+    "yell3",
+    "yell4"
+  ],
+  "truth_file": "data/ground_truth/room_coordinates.txt",
+  "true_room_m": [
+    12.25,
+    6.14,
+    2.4
+  ],
+  "rt60_mid_s": 1.517817114315342,
+  "room_before_m": [
+    5.789733578683544,
+    5.789613914402567,
+    2.4398452000059434
+  ],
+  "room_after_m": [
+    5.789733578683544,
+    5.789613914402567,
+    2.4398452000059434
+  ],
+  "distance_check": [
+    {
+      "recording": "calp2",
+      "true_m": 6.263585235310524,
+      "uncalibrated_m": 5.0677059534683195,
+      "loo_calibrated_m": 6.046564229579658,
+      "loo_error_pct": 3.4648048613983184
+    },
+    {
+      "recording": "clap1",
+      "true_m": 4.059495042489891,
+      "uncalibrated_m": 3.9678924864384704,
+      "loo_calibrated_m": 4.904237345567792,
+      "loo_error_pct": 20.809048766808665
+    },
+    {
+      "recording": "clap3",
+      "true_m": 4.984957371934087,
+      "uncalibrated_m": 4.177959117337009,
+      "loo_calibrated_m": 5.16387558421244,
+      "loo_error_pct": 3.5891623323738866
+    },
+    {
+      "recording": "clap4",
+      "true_m": 7.271829205915112,
+      "uncalibrated_m": 3.1315307442132165,
+      "loo_calibrated_m": 3.7364049839611457,
+      "loo_error_pct": 48.61808661675046
+    }
+  ],
+  "note": "Fitted to one room. Distance errors are leave-one-out."
+}

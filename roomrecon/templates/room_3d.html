@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room Reconstruction 3D</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --text: #1d2330; --muted: #5f6b7a; --line: #dfe3e8;
+    --accent: #2f6fd6; --est: #2f6fd6; --truth: #1f9d55; --scene: #eef1f5; --grid: #c9d0d9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151b; --panel: #1b2029; --text: #e6e9ee; --muted: #9aa5b4; --line: #2c3340;
+      --accent: #6aa0ff; --est: #6aa0ff; --truth: #4cc98a; --scene: #161a21; --grid: #323a47;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12151b; --panel: #1b2029; --text: #e6e9ee; --muted: #9aa5b4; --line: #2c3340;
+    --accent: #6aa0ff; --est: #6aa0ff; --truth: #4cc98a; --scene: #161a21; --grid: #323a47;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .app { display: grid; grid-template-columns: 360px 1fr; height: 100vh; }
+  aside { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; padding: 18px 18px 28px; }
+  main { position: relative; min-height: 0; }
+  #view { position: absolute; inset: 0; background: var(--scene); }
+  canvas { display: block; touch-action: none; }
+  h1 { font-size: 18px; margin: 0 0 2px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 0 8px; }
+  .sub { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
+  .dims { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .dim { border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  .dim b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .dim span { color: var(--muted); font-size: 11px; }
+  .dim small { display: block; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+  label.t { display: flex; align-items: center; gap: 8px; padding: 3px 0; cursor: pointer; }
+  .legend-line { display: inline-block; width: 18px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 4px; }
+  .dashed { border-top-style: dashed; }
+  .note { font-size: 12px; color: var(--muted); background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+  .kv { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; }
+  .kv span:last-child { font-variant-numeric: tabular-nums; }
+  audio { width: 100%; height: 34px; margin: 2px 0 8px; }
+  .hint { position: absolute; left: 12px; bottom: 10px; font-size: 12px; color: var(--muted); pointer-events: none; }
+  .btns { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; }
+  .btns button { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+  .err { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); }
+  @media (max-width: 800px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: 60vh auto; height: auto; }
+    main { order: -1; height: 60vh; }
+    aside { border-right: 0; border-top: 1px solid var(--line); padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1>Room reconstruction</h1>
+    <p class="sub">Estimated from audio only. Positions of the phone and the people come from the ground-truth file.</p>
+
+    <h2>Estimated room</h2>
+    <div class="dims" id="dims"></div>
+    <div class="note" style="margin-top:8px" id="measured"></div>
+    <div style="margin-top:8px" id="roomfacts"></div>
+
+    <h2>Show</h2>
+    <label class="t"><input type="checkbox" id="tEst" checked><span class="legend-line" style="border-color:var(--est)"></span>Estimated room</label>
+    <label class="t"><input type="checkbox" id="tUnc"><span class="legend-line dashed" style="border-color:var(--est)"></span>90% size range</label>
+    <label class="t" id="lTruth"><input type="checkbox" id="tTruth" checked><span class="legend-line" style="border-color:var(--truth)"></span>True room</label>
+    <label class="t" id="lSrc"><input type="checkbox" id="tSrc" checked>Phone &amp; people</label>
+    <label class="t" id="lRing"><input type="checkbox" id="tRing" checked>Heard from audio (distance rings, side arrows)</label>
+    <label class="t"><input type="checkbox" id="tLbl" checked>Labels</label>
+
+    <h2>Recordings</h2>
+    <table id="recs"></table>
+
+    <h2>Reverberation</h2>
+    <table id="rt"></table>
+    <div id="surf" style="margin-top:8px"></div>
+
+    <h2>Listen</h2>
+    <div class="sub" id="origName"></div>
+    <audio controls id="aOrig"></audio>
+    <div class="sub">A clap simulated in the reconstructed room</div>
+    <audio controls id="aSyn"></audio>
+
+    <h2>Calibration</h2>
+    <div class="note" id="calib"></div>
+  </aside>
+  <main>
+    <div id="view"></div>
+    <div class="btns"><button id="bTop">Top</button><button id="bIso">3D</button><button id="bSide">Side</button></div>
+    <div class="hint">Drag to rotate · right-drag or shift-drag to pan · scroll to zoom</div>
+    <div class="err" id="err">The 3D view needs three.js from cdnjs.cloudflare.com. Check the internet connection and reload.<br>The numbers on the left still work offline.</div>
+  </main>
+</div>
+
+<script>const DATA = /*__DATA__*/null;</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  const D = DATA, E = D.est, T = D.truth;
+  const f2 = v => (v == null || isNaN(v)) ? "–" : Number(v).toFixed(2);
+  const $ = id => document.getElementById(id);
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  // ---------------------------------------------------------------- side panel
+  const trueDims = T ? (() => { const h = [T.room[0], T.room[2]].sort((a, b) => b - a); return [h[0], h[1], T.room[1]]; })() : null;
+  const ci = E.ci90;
+  [["Length", E.length_m, ci.length, 0], ["Width", E.width_m, ci.width, 1], ["Height", E.height_m, ci.height, 2]].forEach(([n, v, r, i]) => {
+    const d = document.createElement("div"); d.className = "dim";
+    d.innerHTML = `<span>${n}</span><b>${f2(v)} m</b><small>90%: ${r[0].toFixed(1)}–${r[1].toFixed(1)}</small>` +
+      (trueDims ? `<small>true ${f2(trueDims[i])} m</small>` : "");
+    $("dims").appendChild(d);
+  });
+  $("measured").innerHTML = "<b>Measured from the audio:</b> height, reverberation, surface type. " +
+    (D.calibration && D.calibration.mode !== "general" ? "<b>Length and width</b> follow the calibration room's proportions; the audio alone cannot measure them."
+                   : "<b>Length and width</b> are a best guess; these recordings cannot measure them.");
+  const A = D.acoustics;
+  const kv = (k, v) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`;
+  $("roomfacts").innerHTML =
+    kv("Volume", `${E.volume_m3.toFixed(0)} m³ (90%: ${ci.volume[0].toFixed(0)}–${ci.volume[1].toFixed(0)})`) +
+    (trueDims ? kv("True volume", `${(trueDims[0] * trueDims[1] * trueDims[2]).toFixed(0)} m³`) : "") +
+    kv("Floor area", `${E.floor_area_m2.toFixed(1)} m²`) +
+    kv("RT60 (mid)", `${f2(A.rt60_mid_s)} s`) +
+    kv("Mean absorption", f2(A.absorption_mid)) +
+    kv("Critical distance", `${f2(A.critical_distance_m)} m`);
+
+  const sideTxt = r => r.side > 0 ? "right" : r.side < 0 ? "left" : "?";
+  let h = "<tr><th>Recording</th><th>Type</th><th>Side</th><th>Est. dist</th><th>True dist</th></tr>";
+  D.recordings.forEach(r => {
+    h += `<tr><td><span class="swatch" style="background:${r.color}"></span>${r.name}</td><td>${r.kind === "impulsive" ? "clap" : "yell"}</td>` +
+         `<td title="stereo level difference ${r.ild_db != null ? (-r.ild_db).toFixed(1) : "–"} dB (right minus left)">${sideTxt(r)}</td>` +
+         `<td title="${r.dist_est && !r.dist_reliable ? 'Low confidence: no distinct direct sound in this recording' : ''}">${r.dist_est ? f2(r.dist_est) + " m" + (r.dist_reliable ? "" : " ?") : "–"}</td><td>${r.dist_true ? f2(r.dist_true) + " m" : "–"}</td></tr>`;
+  });
+  $("recs").innerHTML = h;
+  $("recs").insertAdjacentHTML("afterend", '<div class="note" style="margin-top:8px"><b>Side</b> = which end of the phone the sound came from (stereo level difference at the onset; "?" = too small to tell).</div>');
+  if (D.recordings.some(r => r.dist_est && !r.dist_reliable)) {
+    $("recs").insertAdjacentHTML("afterend", '<div class="note" style="margin-top:8px">"?" = low confidence: the phone did not capture a distinct direct sound (camera-app audio processing), so the distance is a rough guess.</div>');
+  }
+
+  const bands = Object.keys(A.rt60_s);
+  h = "<tr><th>Band (Hz)</th><th>RT60 (s)</th><th>Absorption</th></tr>";
+  bands.forEach(b => { h += `<tr><td>${b}</td><td>${f2(A.rt60_s[b])}</td><td>${f2(A.eyring_absorption[b])}</td></tr>`; });
+  $("rt").innerHTML = h;
+  $("surf").innerHTML = (A.surface_notes || []).map(n => `<div class="note" style="margin-bottom:6px">${n}</div>`).join("");
+
+  $("origName").textContent = `Real recording: ${D.audio.original_name}`;
+  $("aOrig").src = "data:audio/wav;base64," + D.audio.original;
+  $("aSyn").src = "data:audio/wav;base64," + D.audio.resynth;
+
+  const C = D.calibration;
+  $("calib").innerHTML = C && C.mode === "general"
+    ? `General calibration from <b>${(C.calibrated_on || []).length}</b> recordings: distance × ${C.distance_scale.toFixed(2)}. Room size priors stay generic, so other rooms are not pulled toward the calibration room.`
+    : C
+    ? `Same-room calibration on <b>${(C.calibrated_on || []).length}</b> recordings of one room: size priors ${C.prior_length[0].toFixed(2)} × ${C.prior_width[0].toFixed(2)} × ${C.prior_height[0].toFixed(2)} m, ` +
+      `absorption ${C.prior_absorption[0].toFixed(3)}, distance × ${C.distance_scale.toFixed(2)}.<br><br>` +
+      `Results on the same room are <b>not an independent test</b>; record a different room to check the calibration.`
+    : "Not calibrated: default (weak) priors.";
+
+  if (!T) { ["lTruth", "lSrc", "lRing"].forEach(id => $(id).style.display = "none"); }
+
+  // ---------------------------------------------------------------- 3D scene
+  if (typeof THREE === "undefined") { $("err").style.display = "flex"; return; }
+  const view = $("view");
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  view.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 500);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.6); sun.position.set(5, 12, 8); scene.add(sun);
+
+  // Estimated room: length along the axis where the true room is longer (Z if unknown).
+  const longOnX = T && T.room[0] > T.room[2];
+  const est = longOnX ? [E.length_m, E.height_m, E.width_m] : [E.width_m, E.height_m, E.length_m];
+  const scale3 = (a, b) => longOnX ? [a[0], a[2], a[1]] : [a[1], a[2], a[0]];
+  const extent = Math.max(...est, ...(T ? T.room : [0]));
+
+  const groups = {};
+  const G = n => (groups[n] = groups[n] || (() => { const g = new THREE.Group(); scene.add(g); return g; })());
+
+  function box(size, color, opts = {}) {
+    const g = new THREE.Group();
+    const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
+    const edges = new THREE.EdgesGeometry(geo);
+    const mat = opts.dashed ? new THREE.LineDashedMaterial({ color, dashSize: 0.25, gapSize: 0.15, transparent: true, opacity: 0.8 })
+                            : new THREE.LineBasicMaterial({ color });
+    const line = new THREE.LineSegments(edges, mat);
+    if (opts.dashed) line.computeLineDistances();
+    g.add(line);
+    if (opts.fill) {
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: opts.fill, side: THREE.DoubleSide, depthWrite: false }));
+      g.add(m);
+    }
+    g.position.set(size[0] / 2, size[1] / 2, size[2] / 2);
+    return g;
+  }
+
+  function label(text, pos, color, size = 0.45) {
+    const c = document.createElement("canvas"), ctx = c.getContext("2d");
+    const font = "600 44px system-ui, sans-serif"; ctx.font = font;
+    const w = Math.ceil(ctx.measureText(text).width) + 24; c.width = w; c.height = 64;
+    ctx.font = font; ctx.fillStyle = "rgba(0,0,0,0)"; ctx.fillRect(0, 0, w, 64);
+    ctx.fillStyle = color; ctx.textBaseline = "middle"; ctx.fillText(text, 12, 34);
+    const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter;
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    s.scale.set(size * w / 64, size, 1); s.position.set(...pos); s.renderOrder = 10;
+    G("labels").add(s);
+    return s;
+  }
+
+  function build() {
+    Object.values(groups).forEach(g => { while (g.children.length) g.remove(g.children[0]); });
+    const cEst = css("--est"), cTruth = css("--truth"), cText = css("--text"), cGrid = css("--grid");
+    scene.background = new THREE.Color(css("--scene"));
+
+    const grid = new THREE.GridHelper(Math.ceil(extent + 4) * 2, Math.ceil(extent + 4) * 2, cGrid, cGrid);
+    grid.material.transparent = true; grid.material.opacity = 0.6;
+    G("grid").add(grid);
+
+    G("est").add(box(est, cEst, { fill: 0.07 }));
+    label(`${E.length_m.toFixed(2)} m`, longOnX ? [est[0] / 2, 0.05, -0.35] : [-0.5, 0.05, est[2] / 2], cEst);
+    label(`${E.width_m.toFixed(2)} m`, longOnX ? [-0.5, 0.05, est[2] / 2] : [est[0] / 2, 0.05, -0.35], cEst);
+    label(`${E.height_m.toFixed(2)} m`, [-0.35, est[1] / 2, -0.35], cEst);
+
+    G("unc").add(box(scale3([ci.length[0], ci.width[0], ci.height[0]]).map((v, i) => v), cEst, { dashed: true }));
+    G("unc").add(box(scale3([ci.length[1], ci.width[1], ci.height[1]]), cEst, { dashed: true }));
+
+    if (T) {
+      G("truth").add(box(T.room, cTruth, {}));
+      label(`true ${T.room[0].toFixed(2)} m`, [T.room[0] / 2, 0.05, T.room[2] + 0.4], cTruth, 0.4);
+      label(`true ${T.room[2].toFixed(2)} m`, [T.room[0] + 0.6, 0.05, T.room[2] / 2], cTruth, 0.4);
+      label(`true ${T.room[1].toFixed(2)} m`, [T.room[0] + 0.5, T.room[1] / 2, T.room[2]], cTruth, 0.4);
+
+      if (T.phone) {
+        const p = T.phone;
+        const phone = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.18), new THREE.MeshLambertMaterial({ color: 0xc0392b }));
+        phone.position.set(...p); G("src").add(phone);
+        const leg = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(p[0], 0, p[2]), new THREE.Vector3(...p)]),
+                                   new THREE.LineBasicMaterial({ color: 0xc0392b, transparent: true, opacity: 0.5 }));
+        G("src").add(leg);
+        label("phone", [p[0], p[1] + 0.35, p[2]], "#c0392b", 0.42);
+      }
+      const seen = new Set();
+      D.recordings.forEach(r => {
+        const s = T.sources[r.key];
+        if (!s) return;
+        if (!seen.has(r.key)) {
+          seen.add(r.key);
+          const m = new THREE.Mesh(new THREE.SphereGeometry(0.16, 24, 16), new THREE.MeshLambertMaterial({ color: r.color }));
+          m.position.set(...s); G("src").add(m);
+          const pole = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(s[0], 0, s[2]), new THREE.Vector3(...s)]),
+                                      new THREE.LineBasicMaterial({ color: r.color }));
+          G("src").add(pole);
+          const names = D.recordings.filter(q => q.key === r.key).map(q => q.name).join(" / ");
+          label(names, [s[0], s[1] + 0.4, s[2]], r.color, 0.4);
+          if (T.phone) {
+            const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...T.phone), new THREE.Vector3(...s)]),
+                                      new THREE.LineDashedMaterial({ color: r.color, dashSize: 0.12, gapSize: 0.1 }));
+            ln.computeLineDistances(); G("src").add(ln);
+          }
+        }
+        // what the audio says: distance -> ring around the phone at the person's height; side -> only the
+        // half of the ring on the heard side (needs phone_right in the truth file), yells get an arrow
+        const pr = T.phone_right && r.side ? T.phone_right.map(v => v * r.side) : null;
+        if (pr && T.phone && !r.dist_est) {
+          const dir = new THREE.Vector3(pr[0], 0, pr[2]).normalize();
+          const i = D.recordings.indexOf(r);
+          const origin = new THREE.Vector3(T.phone[0] + (i % 4 - 1.5) * 0.12, T.phone[1] + 0.15 + 0.05 * i, T.phone[2]);
+          G("ring").add(new THREE.ArrowHelper(dir, origin, 1.6, new THREE.Color(r.color).getHex(), 0.3, 0.15));
+        }
+        if (r.dist_est && T.phone) {
+          const dh = s[1] - T.phone[1];
+          const rad = Math.sqrt(Math.max(r.dist_est * r.dist_est - dh * dh, 0.01));
+          const pts = [];
+          for (let i = 0; i <= 96; i++) {
+            const a = i / 96 * Math.PI * 2, dx = Math.cos(a), dz = Math.sin(a);
+            if (pr && dx * pr[0] + dz * pr[2] < 0) continue;
+            pts.push(new THREE.Vector3(T.phone[0] + rad * dx, s[1], T.phone[2] + rad * dz));
+          }
+          if (pr) pts.sort((p, q) => Math.atan2(p.z - T.phone[2], p.x - T.phone[0]) - Math.atan2(q.z - T.phone[2], q.x - T.phone[0]));
+          const ring = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: r.color, transparent: true, opacity: 0.9 }));
+          G("ring").add(ring);
+        }
+      });
+    }
+    applyToggles();
+  }
+
+  function applyToggles() {
+    const vis = { est: $("tEst").checked, unc: $("tUnc").checked, truth: $("tTruth").checked, src: $("tSrc").checked, ring: $("tRing").checked, labels: $("tLbl").checked, grid: true };
+    Object.entries(groups).forEach(([k, g]) => g.visible = vis[k] !== false);
+  }
+  ["tEst", "tUnc", "tTruth", "tSrc", "tRing", "tLbl"].forEach(id => $(id).addEventListener("change", applyToggles));
+
+  // ---------------------------------------------------------------- orbit camera
+  const room = T ? T.room : est;
+  const target = new THREE.Vector3(room[0] / 2, room[1] / 3, room[2] / 2);
+  let theta = Math.PI + 0.75, phi = 0.95, radius = extent * 1.6;
+  function place() {
+    phi = Math.min(Math.max(phi, 0.02), Math.PI / 2 - 0.02);
+    radius = Math.min(Math.max(radius, 1), 200);
+    camera.position.set(target.x + radius * Math.sin(phi) * Math.sin(theta), target.y + radius * Math.cos(phi), target.z + radius * Math.sin(phi) * Math.cos(theta));
+    camera.lookAt(target);
+  }
+  let drag = null;
+  const el = renderer.domElement;
+  el.addEventListener("contextmenu", e => e.preventDefault());
+  el.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey }; el.setPointerCapture(e.pointerId); });
+  el.addEventListener("pointerup", () => drag = null);
+  el.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+    if (drag.pan) {
+      const k = radius / el.clientHeight;
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
+      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1);
+      target.addScaledVector(right, -dx * k).addScaledVector(up, dy * k);
+    } else { theta -= dx * 0.008; phi -= dy * 0.008; }
+    place();
+  });
+  el.addEventListener("wheel", e => { e.preventDefault(); radius *= Math.exp(e.deltaY * 0.001); place(); }, { passive: false });
+  $("bTop").onclick = () => { phi = 0.02; theta = Math.PI; place(); };
+  $("bIso").onclick = () => { phi = 0.95; theta = Math.PI + 0.75; place(); };
+  $("bSide").onclick = () => { phi = Math.PI / 2 - 0.05; theta = -Math.PI / 2; place(); };
+
+  function resize() {
+    const w = view.clientWidth, h = view.clientHeight;
+    renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(view);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", build);
+
+  build(); resize(); place();
+  (function loop() { renderer.render(scene, camera); requestAnimationFrame(loop); })();
+})();
+</script>
+</body>
+</html>
