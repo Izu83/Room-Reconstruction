@@ -11,9 +11,6 @@ env/
 # Generated results
 output/
 
-# Decoded Spatial Audio (large, regenerate with tools/decode_spatial_audio.swift)
-data/spatial/*
-!data/spatial/.gitkeep
 
 # Editors / OS
 .vscode/

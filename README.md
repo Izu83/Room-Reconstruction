@@ -121,7 +121,7 @@ On the test room, without being given the answer:
 
 iPhone Spatial Audio videos also contain an **APAC** track: 4-channel first-order ambisonics, which records the *direction* every sound and echo comes from. Only Apple's frameworks can decode it. When it is decoded, the program adds the 3D direction of every clap and yell and a millisecond-by-millisecond map of where the echoes come from.
 
-- **With a Mac (macOS 15+):**
+- **With a Mac (macOS 26+; macOS 15 decodes iOS 27 recordings to silence):**
   ```bash
   swift tools/decode_spatial_audio.swift data/videos
   ```

@@ -1,5 +1,6 @@
-# Decodes the iPhone Spatial Audio (APAC) track of every video in data/videos on a GitHub-hosted Mac
-# and publishes the 4-channel ambisonics WAVs as the "spatial-audio" artifact.
+# Decodes the iPhone Spatial Audio (APAC) track of every video in data/videos on a GitHub-hosted Mac and
+# commits the 4-channel ambisonics WAVs to data/spatial/ (also published as the "spatial-audio" artifact).
+# Recordings from iOS 27 need the macOS 26 decoder: macOS 15 decodes them to silence.
 # Runs automatically when videos or the decoder change, or manually from the Actions tab.
 name: Decode Spatial Audio
 
@@ -11,24 +12,20 @@ on:
       - ".github/workflows/decode-spatial-audio.yml"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   decode:
-    # Recordings from newer iOS versions may need a newer macOS APAC decoder, so try several.
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-26, macos-15]
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
-
-      - name: Show system
-        run: sw_vers && swift --version
 
       - name: Decode APAC to first-order ambisonics
         shell: bash
         run: |
           set -o pipefail
+          sw_vers
           swift tools/decode_spatial_audio.swift data/videos data/spatial 2>&1 | tee decode.log
 
       - name: Publish decoder log
@@ -37,11 +34,24 @@ jobs:
         run: |
           if [ -f decode.log ]; then
             msg=$( (sw_vers; tail -c 3300 decode.log) | tr -d '\r' | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
-            echo "::notice title=Decoder log (${{ matrix.os }})::${msg}"
+            echo "::notice title=Decoder log::${msg}"
           fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: spatial-audio-${{ matrix.os }}
+          name: spatial-audio
           path: data/spatial/*.wav
           if-no-files-found: error
+
+      - name: Commit decoded audio to data/spatial
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/spatial/*.wav
+          if git diff --cached --quiet; then
+            echo "Decoded audio unchanged."
+          else
+            git commit -m "Update decoded Spatial Audio (data/spatial)"
+            git push
+          fi

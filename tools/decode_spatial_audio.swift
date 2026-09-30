@@ -1,7 +1,7 @@
 // Decode the iPhone "Spatial Audio" track (APAC, Apple Positional Audio Codec) of .MOV files to
 // 4-channel first-order ambisonics WAV (ACN channel order W, Y, Z, X; SN3D normalisation).
 //
-// Runs on a Mac only (APAC can only be decoded by Apple's frameworks). Needs macOS 15 (Sequoia) or newer.
+// Runs on a Mac only (APAC can only be decoded by Apple's frameworks). Needs macOS 26 or newer for recordings made with iOS 27 (macOS 15 decodes them to silence).
 //
 //   swift mac/decode_spatial_audio.swift data/videos            # every .MOV in the folder
 //   swift mac/decode_spatial_audio.swift clap1.MOV out_folder   # one file
@@ -21,7 +21,7 @@ enum DecodeError: Error, CustomStringConvertible {
     var description: String {
         switch self {
         case .noSpatialTrack: return "no APAC (Spatial Audio) track found"
-        case .readerFailed(let m): return "decoding failed: \(m) (APAC decoding needs macOS 15 or newer)"
+        case .readerFailed(let m): return "decoding failed: \(m) (recordings from iOS 27 need macOS 26 or newer)"
         }
     }
 }
