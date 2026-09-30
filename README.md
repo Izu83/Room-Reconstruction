@@ -3,11 +3,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Izu83" title="Nikolay Rangelov (Izu83)"><img src="https://github.com/Izu83.png?size=160" width="76" height="76" alt="Nikolay Rangelov"></a>
-  &nbsp;&nbsp;
-  <a href="https://github.com/mitkor2" title="Mentor: Dimitar Rangelov (mitkor2)"><img src="https://github.com/mitkor2.png?size=160" width="76" height="76" alt="Dimitar Rangelov"></a>
-  &nbsp;&nbsp;
-  <img src="assets/logos/uktc.png" height="76" alt="UKTC — NPG po KTS Pravets" title="UKTC — NPG po KTS Pravets">
+  <a href="https://github.com/Izu83" title="Nikolay Rangelov (Izu83)"><img src="assets/logos/izu83.png" width="96" height="96" alt="Nikolay Rangelov"></a>
+  &nbsp;
+  <a href="https://github.com/mitkor2" title="Mentor: Dimitar Rangelov (mitkor2)"><img src="assets/logos/mitkor2.png" width="96" height="96" alt="Dimitar Rangelov"></a>
+  &nbsp;
+  <a href="https://uktc-bg.com/" title="UKTC — NPG po KTS Pravets"><img src="assets/logos/uktc.png" width="96" height="96" alt="UKTC — NPG po KTS Pravets"></a>
 </p>
 
 <p align="center">
@@ -202,15 +202,15 @@ assets/               banner and logos
 <table align="center">
   <tr>
     <td align="center">
-      <a href="https://github.com/Izu83"><img src="https://github.com/Izu83.png?size=200" width="100" alt="Nikolay Rangelov"><br><b>Nikolay Rangelov</b></a><br>
+      <a href="https://github.com/Izu83"><img src="assets/logos/izu83.png" width="120" alt="Nikolay Rangelov"><br><b>Nikolay Rangelov</b></a><br>
       <sub>Author · @Izu83</sub>
     </td>
     <td align="center">
-      <a href="https://github.com/mitkor2"><img src="https://github.com/mitkor2.png?size=200" width="100" alt="Dimitar Rangelov"><br><b>Dimitar Rangelov</b></a><br>
+      <a href="https://github.com/mitkor2"><img src="assets/logos/mitkor2.png" width="120" alt="Dimitar Rangelov"><br><b>Dimitar Rangelov</b></a><br>
       <sub>Mentor · @mitkor2</sub>
     </td>
     <td align="center">
-      <img src="assets/logos/uktc.png" width="100" alt="UKTC"><br><b>UKTC</b><br>
+      <a href="https://uktc-bg.com/"><img src="assets/logos/uktc.png" width="120" alt="UKTC"><br><b>UKTC</b></a><br>
       <sub>NPG po KTS · Pravets</sub>
     </td>
   </tr>
