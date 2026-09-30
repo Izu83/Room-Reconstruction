@@ -32,6 +32,10 @@ class Analysis:
     doa_az_deg: float | None = None         # from Spatial Audio (FOA), phone frame
     doa_el_deg: float | None = None
     doa_strength: float | None = None
+    doa_vec: np.ndarray | None = None       # unit vector of doa_az/el in the ambisonics frame
+    level_az_deg: float | None = None       # direction in the levelled frame (see localize.py)
+    level_el_deg: float | None = None
+    position_rel: np.ndarray | None = None  # estimated source position relative to the phone (ambisonics frame)
     reflection_map: list | None = None      # [(ms after onset, az, el, level dB, strength)], first 80 ms
     distance_m: float | None = None
     distance_raw_m: float | None = None     # before calibration
@@ -157,6 +161,8 @@ def _analyse_spatial(rec: Recording, a: Analysis) -> None:
     ix, e = foa_intensity(rec.foa, fsr)
     win = 0.003 if a.kind == "impulsive" else 0.010
     a.doa_az_deg, a.doa_el_deg, a.doa_strength = foa_direction(ix, e, f_on - int(0.0005 * fsr), f_on + int(win * fsr))
+    az, el = np.radians(a.doa_az_deg), np.radians(a.doa_el_deg)
+    a.doa_vec = np.array([np.cos(el) * np.cos(az), np.cos(el) * np.sin(az), np.sin(el)])
     ref = e[f_on:f_on + int(0.003 * fsr)].sum() + 1e-20
     ms = int(0.001 * fsr)
     frames = []

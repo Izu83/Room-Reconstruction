@@ -113,13 +113,24 @@ On the test room, without being given the answer:
 |---|---|---|---|
 | Ceiling height | 2.44 m | 2.40 m | ✅ 2 % |
 | Reverberation (mid bands) | 1.52 s | — | hard, sparsely furnished room ✅ |
-| Side of the phone | 6 / 6 confident calls correct | — | ✅ |
+| Side of the phone (stereo) | 6 / 6 confident calls correct | — | ✅ |
+| 3D direction of the person (Spatial Audio) | median 27° error, leave-one-out | — | ✅ (random: ~55°) |
+| Which way is up (Spatial Audio, no ground truth) | within ~25–40° | — | ⚠️ rough |
 | Distance to the person | 3 – 21 % error on 3 of 4 claps | — | ⚠️ low confidence |
-| Floor length × width | 5.8 × 5.8 m (90 %: 3.8–12.0 m) | 12.25 × 6.14 m | ❌ not measurable from stereo |
+| Floor length × width | 5.8 × 5.8 m (90 %: 3.8–12.0 m) | 12.25 × 6.14 m | ❌ not measurable from these recordings |
 
 ## Spatial audio
 
-iPhone Spatial Audio videos also contain an **APAC** track: 4-channel first-order ambisonics, which records the *direction* every sound and echo comes from. Only Apple's frameworks can decode it. When it is decoded, the program adds the 3D direction of every clap and yell and a millisecond-by-millisecond map of where the echoes come from.
+iPhone Spatial Audio videos also contain an **APAC** track: 4-channel first-order ambisonics, which records the *direction* every sound and echo comes from. Only Apple's frameworks can decode it. The decoded files for the test recordings are already in [`data/spatial/`](data/spatial).
+
+When `data/spatial/<name>_foa.wav` exists, the program:
+- measures the **3D direction of every clap and yell** (direct sound, intensity vector),
+- estimates **which way is up** from the plane the source directions lie in (people stand around the phone at a similar height), and levels the directions,
+- places each clap at its estimated distance along that direction, and draws the result as arrows in the 3D view and a top view in the report,
+- with ground truth, checks every direction **leave-one-out** against a phone orientation fitted on the other recordings,
+- stores a 1 ms map of where the first 80 ms of echoes come from (`room.json`).
+
+Using the echo directions to measure the room's length and width was tested three ways (image-source direction fit, direction-dependent reverberation, deconvolution). None could separate the walls in these recordings. The claps were 4–7 m from the phone, far beyond the room's ~0.6 m critical distance, so even the first milliseconds are a dense mix of reflections (direct sound 17–22 dB below the reverb).
 
 - **With a Mac (macOS 26+; macOS 15 decodes iOS 27 recordings to silence):**
   ```bash
@@ -169,6 +180,7 @@ roomrecon/                          Python package  (python -m roomrecon)
 ├── audio.py          videos, WAV, ambisonics, audio extraction
 ├── analysis.py       event detection, RT60, DRR, stereo side, echoes
 ├── spatial.py        direction analysis of ambisonics
+├── localize.py       source directions, "up" estimate, ground-truth direction check
 ├── model.py          shoebox room model, fit, source distance
 ├── calibration.py    calibration against ground truth
 ├── truth.py          ground-truth parsing and comparison
@@ -185,17 +197,19 @@ assets/               banner and logos
 
 ## Limitations
 
-- **Floor length and width cannot be measured** from a single phone's stereo recording. The echoes of distant walls arrive while the room is already full of reverberation, and one microphone pair cannot tell their direction. A speaker sine sweep was tested in simulation and does not solve this either.
-- **Distance to the person is rough.** The camera app's audio processing hides the direct sound of a clap, and the program flags this in the output.
-- **Stereo gives only one axis.** It tells which end of the phone a sound came from, not the full angle.
+- **Floor length and width cannot be measured from these recordings**, with or without Spatial Audio. The sounds were made far from the phone (4–7 m against a ~0.6 m critical distance), so no individual wall echoes survive.
+- **Distance to the person is rough**, for the same reason. The program flags it as low confidence.
+- **Directions are approximate** (about 27° median error), and "up" without ground truth is only good to about 30°.
 - Low-frequency "room mode" peaks in phone recordings turned out to be device and background noise. They are off by default (`--use-modes`).
 - Everything has been tested on **one room**. A second measured room is the real test.
 
 ## What's next
 
-- Decode the **Spatial Audio** track and turn the echo-direction map into wall positions. This is the most promising route to measuring length and width.
+- **New recordings made for measuring:**
+  - Use sharp sounds, such as balloon pops or wooden clappers, made **within about 0.5 m of the microphone**.
+  - Record 3 per position at 4 or more positions.
+  - Use a Zoom H3-VR in AmbiX mode, or the iPhone in Spatial Audio. The wall echoes then stand out, and the echo-direction fit can separate the walls.
 - Record more rooms with tape-measured dimensions and validate across them.
-- Record from several spots per room, including positions near each wall.
 
 ## Author
 

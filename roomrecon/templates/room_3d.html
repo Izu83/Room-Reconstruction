@@ -74,7 +74,7 @@
     <label class="t"><input type="checkbox" id="tUnc"><span class="legend-line dashed" style="border-color:var(--est)"></span>90% size range</label>
     <label class="t" id="lTruth"><input type="checkbox" id="tTruth" checked><span class="legend-line" style="border-color:var(--truth)"></span>True room</label>
     <label class="t" id="lSrc"><input type="checkbox" id="tSrc" checked>Phone &amp; people</label>
-    <label class="t" id="lRing"><input type="checkbox" id="tRing" checked>Heard from audio (distance rings, side arrows)</label>
+    <label class="t" id="lRing"><input type="checkbox" id="tRing" checked>Heard from audio (directions, distances)</label>
     <label class="t"><input type="checkbox" id="tLbl" checked>Labels</label>
 
     <h2>Recordings</h2>
@@ -133,14 +133,24 @@
     kv("Critical distance", `${f2(A.critical_distance_m)} m`);
 
   const sideTxt = r => r.side > 0 ? "right" : r.side < 0 ? "left" : "?";
-  let h = "<tr><th>Recording</th><th>Type</th><th>Side</th><th>Est. dist</th><th>True dist</th></tr>";
+  const dirTxt = r => r.level_az != null ? `${Math.round(r.level_az)}°` : r.doa_az != null ? `${Math.round(r.doa_az)}°` : sideTxt(r);
+  const dirTip = r => r.doa_az != null
+    ? `Spatial Audio direction: azimuth ${Math.round(r.level_az ?? r.doa_az)}°, elevation ${Math.round(r.level_el ?? r.doa_el)}°` +
+      (r.dir_err != null ? ` · check vs ground truth: ${Math.round(r.dir_err)}° off` : "")
+    : `stereo level difference ${r.ild_db != null ? (-r.ild_db).toFixed(1) : "–"} dB (right minus left)`;
+  const spatial = D.spatial && D.spatial.n > 0;
+  let h = `<tr><th>Recording</th><th>Type</th><th>${spatial ? "Direction" : "Side"}</th><th>Est. dist</th><th>True dist</th></tr>`;
   D.recordings.forEach(r => {
     h += `<tr><td><span class="swatch" style="background:${r.color}"></span>${r.name}</td><td>${r.kind === "impulsive" ? "clap" : "yell"}</td>` +
-         `<td title="stereo level difference ${r.ild_db != null ? (-r.ild_db).toFixed(1) : "–"} dB (right minus left)">${sideTxt(r)}</td>` +
+         `<td title="${dirTip(r)}">${dirTxt(r)}${r.dir_err != null ? ` <small style="color:var(--muted)">±${Math.round(r.dir_err)}</small>` : ""}</td>` +
          `<td title="${r.dist_est && !r.dist_reliable ? 'Low confidence: no distinct direct sound in this recording' : ''}">${r.dist_est ? f2(r.dist_est) + " m" + (r.dist_reliable ? "" : " ?") : "–"}</td><td>${r.dist_true ? f2(r.dist_true) + " m" : "–"}</td></tr>`;
   });
   $("recs").innerHTML = h;
-  $("recs").insertAdjacentHTML("afterend", '<div class="note" style="margin-top:8px"><b>Side</b> = which end of the phone the sound came from (stereo level difference at the onset; "?" = too small to tell).</div>');
+  $("recs").insertAdjacentHTML("afterend", spatial
+    ? `<div class="note" style="margin-top:8px"><b>Direction</b> = where the sound came from, from the Spatial Audio track (azimuth around the phone, levelled). ` +
+      (D.spatial.median_err != null ? `Small numbers = error against the ground truth when that recording is left out of the orientation fit (median ${Math.round(D.spatial.median_err)}°). ` : "") +
+      `Arrows in the 3D view: solid = clap, dashed = yell.</div>`
+    : '<div class="note" style="margin-top:8px"><b>Side</b> = which end of the phone the sound came from (stereo level difference at the onset; "?" = too small to tell).</div>');
   if (D.recordings.some(r => r.dist_est && !r.dist_reliable)) {
     $("recs").insertAdjacentHTML("afterend", '<div class="note" style="margin-top:8px">"?" = low confidence: the phone did not capture a distinct direct sound (camera-app audio processing), so the distance is a rough guess.</div>');
   }
@@ -267,7 +277,25 @@
             ln.computeLineDistances(); G("src").add(ln);
           }
         }
-        // what the audio says: distance -> ring around the phone at the person's height; side -> only the
+        // Spatial Audio: a real 3D direction -> arrow from the phone (to the estimated distance, if known)
+        if (r.dir_scene && T.phone) {
+          const dir = new THREE.Vector3(...r.dir_scene).normalize();
+          const len = r.dist_est || 3.0;
+          const o = new THREE.Vector3(...T.phone);
+          const col = new THREE.Color(r.color).getHex();
+          const arrow = new THREE.ArrowHelper(dir, o, len, col, 0.28, 0.14);
+          if (r.kind !== "impulsive") arrow.line.material = new THREE.LineDashedMaterial({ color: col, dashSize: 0.15, gapSize: 0.1 });
+          if (r.kind !== "impulsive") arrow.line.computeLineDistances();
+          G("ring").add(arrow);
+          if (r.dist_est) {
+            const tip = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 12),
+                                       new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.55 }));
+            tip.position.copy(o.clone().addScaledVector(dir, len));
+            G("ring").add(tip);
+          }
+          return;
+        }
+        // stereo only: distance -> ring around the phone at the person's height; side -> only the
         // half of the ring on the heard side (needs phone_right in the truth file), yells get an arrow
         const pr = T.phone_right && r.side ? T.phone_right.map(v => v * r.side) : null;
         if (pr && T.phone && !r.dist_est) {

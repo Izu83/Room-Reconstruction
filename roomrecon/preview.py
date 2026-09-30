@@ -25,7 +25,7 @@ def wav_b64(x, sr, max_s=None):
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def write_preview(outdir, result, truth, analyses, recs, clap_resynth, sr, up_axis, calibration):
+def write_preview(outdir, result, truth, analyses, recs, clap_resynth, sr, up_axis, calibration, alignment=None):
     up = "xyz".index(up_axis)
     horiz_axes = [i for i in range(3) if i != up]
 
@@ -46,15 +46,22 @@ def write_preview(outdir, result, truth, analyses, recs, clap_resynth, sr, up_ax
         tdata = {"room": scene(truth["room"]), "phone": scene(ph) if ph else None, "sources": sources,
                  "phone_right": scene(pr) if pr else None}
 
+    # Spatial Audio directions in the scene: the rotation between the truth file and the ambisonics frame
+    # (fitted on all recordings) turns each measured direction into room coordinates.
+    R_inv = np.linalg.inv(alignment["R"]) if alignment else None
     rows = []
     for i, a in enumerate(analyses):
         num = re.search(r"(\d+)$", a.name)
         key = num.group(1) if num and tdata and num.group(1) in tdata["sources"] else a.name.lower()
+        dir_scene = scene(R_inv @ a.doa_vec) if (R_inv is not None and a.doa_vec is not None) else None
         rows.append({"name": a.name, "kind": a.kind, "key": key,
                      "color": SOURCE_COLORS.get(key, PALETTE[i % len(PALETTE)]),
                      "dist_est": a.distance_m, "dist_true": truth_distance(truth, a.name) if truth else None,
                      "dist_reliable": a.distance_reliable, "side": a.side, "ild_db": a.ild_db,
                      "doa_az": a.doa_az_deg, "doa_el": a.doa_el_deg,
+                     "level_az": a.level_az_deg, "level_el": a.level_el_deg,
+                     "dir_scene": [float(v) for v in dir_scene] if dir_scene is not None else None,
+                     "dir_err": alignment["errors"].get(a.name) if alignment else None,
                      "rt60_mid": float(np.mean([a.rt60[b] for b in MID_BANDS if a.rt60[b]] or [np.nan]))})
 
     clap_rec = next((r for r, a in zip(recs, analyses) if a.kind == "impulsive"), recs[0])
@@ -64,8 +71,10 @@ def write_preview(outdir, result, truth, analyses, recs, clap_resynth, sr, up_ax
              "original": wav_b64(clap_rec.mono[s0:], sr, 3.0),
              "resynth": wav_b64(clap_resynth, sr, 3.0)}
 
+    spatial = {"median_err": alignment["median"] if alignment else None,
+               "n": sum(a.doa_vec is not None for a in analyses)}
     data = {"est": result["room"], "acoustics": {k: v for k, v in result["acoustics"].items() if k != "mode_peaks_hz"},
-            "truth": tdata, "recordings": rows, "calibration": calibration, "audio": audio}
+            "truth": tdata, "recordings": rows, "calibration": calibration, "audio": audio, "spatial": spatial}
     html = (config.TEMPLATE_DIR / "room_3d.html").read_text(encoding="utf-8")
     html = html.replace("/*__DATA__*/null", json.dumps(data, default=float).replace("</", "<\\/"))
     path = outdir / "room_3d.html"

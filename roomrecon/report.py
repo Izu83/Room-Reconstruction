@@ -85,6 +85,24 @@ def make_report(outdir, analyses, rt, modes, flutter, L, samples, notes):
         ax.plot([], [], "k:", label="echo-periodicity distances")
     ax.set_xlabel("metres"); ax.set_title("Dimension uncertainty (MCMC)"); ax.legend(fontsize=8)
 
+    spatial = [a for a in analyses if a.level_az_deg is not None]
+    if spatial:
+        ax = fig.add_subplot(2, 3, 6, projection="polar")
+        ax.set_theta_zero_location("N")
+        for a in spatial:
+            r = a.distance_m or 1.0
+            marker = "o" if a.kind == "impulsive" else "^"
+            ax.plot(np.radians(a.level_az_deg), r, marker, ms=9, alpha=0.85)
+            ax.annotate(a.name, (np.radians(a.level_az_deg), r), fontsize=8, xytext=(4, 4), textcoords="offset points")
+        ax.plot(0, 0, "ks", ms=9)
+        ax.set_title("Source directions, top view (o clap at est. distance, ^ yell at 1 m)", fontsize=10, pad=14)
+        fig.text(0.01, 0.005, "\n".join(notes), fontsize=9, family="monospace", va="bottom")
+        fig.tight_layout(rect=(0, text_h / (11 + text_h) + 0.01, 1, 0.97))
+        path = outdir / "report.png"
+        fig.savefig(path, dpi=110)
+        plt.close(fig)
+        return path
+
     ax = fig.add_subplot(2, 3, 6)
     colors = ["#2f6fd6" if a.side > 0 else "#e15759" if a.side < 0 else "#aaaaaa" for a in analyses]
     ax.barh([a.name for a in analyses], [-(a.ild_db or 0.0) for a in analyses], color=colors)
@@ -114,8 +132,11 @@ def summary_text(notes, analyses, truth_lines, calibration, truth_file, files):
             f"need {config.DIRECT_MIN_DB:.0f})")
         lines.append(f"  {a.name:>8} ({a.kind}): side {side_word[a.side]:<17} ({a.ild_db:+.1f} dB)  distance {dd}{flag}")
         if a.doa_az_deg is not None:
-            lines.append(f"           spatial audio: azimuth {a.doa_az_deg:+.0f} deg, elevation {a.doa_el_deg:+.0f} deg "
-                         f"(phone frame, strength {a.doa_strength:.2f})")
+            if a.level_az_deg is not None:
+                where = f"azimuth {a.level_az_deg:+.0f} deg, elevation {a.level_el_deg:+.0f} deg (levelled)"
+            else:
+                where = f"azimuth {a.doa_az_deg:+.0f} deg, elevation {a.doa_el_deg:+.0f} deg (phone frame)"
+            lines.append(f"           spatial audio: {where}, strength {a.doa_strength:.2f}")
     if truth_lines:
         same = calibration and calibration.get("mode", "room") == "room"
         lines += ["", "GROUND TRUTH COMPARISON" + (" (room priors copied from this same room - not an independent test)" if same else ""),

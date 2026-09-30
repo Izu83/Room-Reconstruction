@@ -18,6 +18,7 @@ from .analysis import aggregate, analyse
 from .audio import discover_inputs, extract_videos, load_recording
 from .calibration import load_calibration, run_calibration
 from .config import BANDS, settings
+from .localize import align_to_truth, estimate_up, level
 from .model import RoomModel, eyring_absorption, fit_room, locate_sources
 from .preview import write_preview
 from .report import make_report, material_hint, summary_text
@@ -97,6 +98,18 @@ def reconstruct(args, calibrate=False):
     alpha_mid = eyring_absorption(L, model.rt_mid)
     rc = locate_sources(analyses, L, model.rt_mid)
 
+    # Spatial Audio: direction of every source, levelled with an "up" found from the sources themselves
+    up, flatness = estimate_up(analyses)
+    for a in analyses:
+        if a.doa_vec is None:
+            continue
+        if up is not None:
+            a.level_az_deg, a.level_el_deg = level(a.doa_vec, up)
+        if a.distance_m:
+            a.position_rel = a.doa_vec * a.distance_m
+    n_spatial = sum(a.doa_vec is not None for a in analyses)
+    alignment = align_to_truth(analyses, truth) if truth else None
+
     same_room = bool(calibration) and calibration.get("mode", "room") == "room"
     if not calibration:
         cal_text = "off (default priors)"
@@ -115,7 +128,18 @@ def reconstruct(args, calibrate=False):
         + ("taken from the calibration room's proportions." if same_room
            else "not measurable from these recordings (generic priors, wide ranges)."),
     ] + ["Surfaces: " + n for n in material_hint(rt)]
+    if n_spatial:
+        up_txt = (f"'up' estimated from the source directions (plane flatness {flatness:.2f}, ~30 deg uncertainty)"
+                  if up is not None else "'up' unknown (needs >= 3 sources spread around the phone)")
+        notes.append(f"Spatial Audio: 3D direction for {n_spatial} recording(s); {up_txt}")
+    else:
+        notes.append("Spatial Audio: not available (add data/spatial/<name>_foa.wav) - side of the phone from stereo only")
     truth_lines = compare_truth(truth, L, analyses, args.up_axis) if truth else []
+    if alignment:
+        errs = alignment["errors"]
+        truth_lines.append(f"Spatial direction check (leave-one-out, each recording vs a rotation fitted on the others): "
+                           f"median {alignment['median']:.0f} deg")
+        truth_lines.append("   " + "  ".join(f"{k} {v:.0f}" for k, v in errs.items()))
 
     # impulse response of the reconstructed room + a clap played in it
     mic = np.array([0.4 * L[0], 0.45 * L[1], 1.0])
@@ -149,17 +173,27 @@ def reconstruct(args, calibrate=False):
                         "drr_db": a.drr_db, "c50_db": a.c50_db,
                         "source_side": a.side, "stereo_level_difference_db": a.ild_db,
                         "spatial_direction": ({"azimuth_deg": a.doa_az_deg, "elevation_deg": a.doa_el_deg,
-                                               "strength": a.doa_strength, "reflection_map": a.reflection_map}
+                                               "levelled_azimuth_deg": a.level_az_deg,
+                                               "levelled_elevation_deg": a.level_el_deg,
+                                               "strength": a.doa_strength,
+                                               "position_rel_m": a.position_rel.tolist() if a.position_rel is not None else None,
+                                               "check_error_deg": alignment["errors"].get(a.name) if alignment else None,
+                                               "reflection_map": a.reflection_map}
                                               if a.doa_az_deg is not None else None),
                         "source_distance_m": a.distance_m,
                         "source_distance_uncalibrated_m": a.distance_raw_m,
                         "direct_prominence_db": a.direct_prominence_db,
                         "source_distance_reliable": a.distance_reliable if a.distance_m else None} for a in analyses],
+        "spatial": {"recordings_with_direction": n_spatial,
+                    "up_in_ambisonics_frame": up.tolist() if up is not None else None,
+                    "plane_flatness": flatness,
+                    "truth_alignment": ({"median_error_deg": alignment["median"], "mirror": alignment["mirror"],
+                                         "errors_deg": alignment["errors"]} if alignment else None)},
         "calibration": calibration,
         "ground_truth_comparison": truth_lines,
     }
     (outdir / "room.json").write_text(json.dumps(result, indent=2, default=float), encoding="utf-8")
-    preview = write_preview(outdir, result, truth, analyses, recs, clap, sr, args.up_axis, calibration)
+    preview = write_preview(outdir, result, truth, analyses, recs, clap, sr, args.up_axis, calibration, alignment)
 
     text = summary_text(notes, analyses, truth_lines, calibration, args.truth, {
         "3D preview:": preview, "Report:": report,
