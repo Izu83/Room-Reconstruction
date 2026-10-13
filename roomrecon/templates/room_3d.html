@@ -121,7 +121,9 @@
   });
   $("measured").innerHTML = "<b>Measured from the audio:</b> height, reverberation, surface type. " +
     (D.calibration && D.calibration.mode !== "general" ? "<b>Length and width</b> follow the calibration room's proportions; the audio alone cannot measure them."
-                   : "<b>Length and width</b> are a best guess; these recordings cannot measure them.");
+                   : D.spatial && D.spatial.n > 0
+                     ? "<b>Floor shape</b> from where the claps were heard (the floor must contain them); <b>size</b> from the reverberation. Approximate - see the 90% ranges."
+                     : "<b>Length and width</b> are a best guess; these recordings cannot measure them.");
   const A = D.acoustics;
   const kv = (k, v) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`;
   $("roomfacts").innerHTML =
