@@ -49,6 +49,7 @@ class RoomModel:
         # Only the most prominent echo periodicity is trusted; weaker candidates were indistinguishable
         # from random ripples of the autocorrelation when checked against a measured room.
         self.flutter = [c for c in (flutter or {}).get("candidates", []) if c[1] >= 1.0][:1]
+        self.footprint = None            # optional SourceFootprint: the floor must contain the clap positions
 
     def loglik(self, L):
         L = np.asarray(L, float)
@@ -65,6 +66,9 @@ class RoomModel:
             if not 0.01 < a < 0.9:
                 return -np.inf
             ll += 2.0 * lognorm_logpdf(a, *settings.prior_absorption)
+
+        if self.footprint is not None:
+            ll += self.footprint.loglik(L)
 
         if self.peaks is not None:
             f, w = room_modes(L, config.MODE_FMAX + 15)

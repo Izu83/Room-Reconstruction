@@ -18,6 +18,7 @@ from .analysis import aggregate, analyse
 from .audio import discover_inputs, extract_videos, load_recording
 from .calibration import load_calibration, run_calibration
 from .config import BANDS, settings
+from .footprint import SourceFootprint
 from .localize import align_to_truth, estimate_up, level
 from .model import RoomModel, eyring_absorption, fit_room, locate_sources
 from .preview import write_preview
@@ -78,16 +79,28 @@ def reconstruct(args, calibrate=False):
     if flutter:
         print("Echo-periodicity distances (m, strength): " + ", ".join(f"{d:.2f} ({s:.1f})" for d, s in flutter["candidates"]))
 
+    # Spatial Audio: "up" from the source directions; the floor must contain every clap position
+    up, flatness = estimate_up(analyses)
+
+    def footprint(scale):
+        if up is None:
+            return None
+        fp = SourceFootprint(analyses, up, model.rt_mid, scale)
+        return fp if fp.active() else None
+
     truth = parse_truth(Path(args.truth))
     if calibrate:
-        L, samples, alternatives, calibration = run_calibration(analyses, rt, modes, flutter, truth or {}, args)
+        fp = footprint(1.0)
+        L, samples, alternatives, calibration = run_calibration(analyses, rt, modes, flutter, truth or {}, args, fp)
     else:
         calibration = None if args.no_calibration else load_calibration()
         if calibration:
             config.apply_calibration(calibration)
             print(f"Using {config.CALIBRATION_FILE.relative_to(config.ROOT)} ({calibration.get('mode', 'room')} mode; "
                   f"--no-calibration to ignore)")
-        print("Fitting room geometry...")
+        fp = footprint(settings.distance_scale)
+        model.footprint = fp
+        print("Fitting room geometry" + (f" (floor must contain the {fp.n} clap positions)..." if fp else "..."))
         L, samples, alternatives = fit_room(model, args.seed)
     lo, hi = np.percentile(samples, 5, axis=0), np.percentile(samples, 95, axis=0)
     vols = np.prod(samples, axis=1)
@@ -95,8 +108,7 @@ def reconstruct(args, calibrate=False):
     alpha_mid = eyring_absorption(L, model.rt_mid)
     rc = locate_sources(analyses, L, model.rt_mid)
 
-    # Spatial Audio: direction of every source, levelled with an "up" found from the sources themselves
-    up, flatness = estimate_up(analyses)
+    # Spatial Audio: direction of every source, levelled with the "up" found above
     for a in analyses:
         if a.doa_vec is None:
             continue
@@ -123,7 +135,8 @@ def reconstruct(args, calibrate=False):
         "Calibration: " + cal_text,
         "Measured from audio: RT60, surface character, ceiling height (floor-ceiling echo). Floor length/width are "
         + ("taken from the calibration room's proportions." if same_room
-           else "not measurable from these recordings (generic priors, wide ranges)."),
+           else ("shaped by the clap positions (the floor must contain them); size from RT60 - approximate."
+                 if fp else "not measurable from these recordings (generic priors, wide ranges).")),
     ] + ["Surfaces: " + n for n in material_hint(rt)]
     if n_spatial:
         up_txt = (f"'up' estimated from the source directions (plane flatness {flatness:.2f}, ~30 deg uncertainty)"

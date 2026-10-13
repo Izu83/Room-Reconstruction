@@ -121,7 +121,9 @@ On the test room, without being given the answer:
 | 3D direction of the person (Spatial Audio) | median 27° error, leave-one-out | — | ✅ (random: ~55°) |
 | Which way is up (Spatial Audio, no ground truth) | within ~25–40° | — | ⚠️ rough |
 | Distance to the person | 3 – 21 % error on 3 of 4 claps | — | ⚠️ low confidence |
-| Floor length × width | 5.8 × 5.8 m (90 %: 3.8–12.0 m) | 12.25 × 6.14 m | ❌ not measurable from these recordings |
+| Floor shape (length : width) | 2.2 : 1 from the clap positions | 2.0 : 1 | ✅ (1.1–1.7 : 1 with one clap left out) |
+| Floor length × width | 9.4 × 4.3 m (90 %: L 3.9–14.1, W 2.3–8.6 m) | 12.25 × 6.14 m | ⚠️ 24 % / 30 % — approximate |
+| Volume | 98 m³ | 181 m³ | ⚠️ 46 % (reverb barely depends on floor size under a low ceiling) |
 
 ## Spatial audio
 
@@ -131,6 +133,7 @@ When `data/spatial/<name>_foa.wav` exists, the program:
 - measures the **3D direction of every clap and yell** (direct sound, intensity vector),
 - estimates **which way is up** from the plane the source directions lie in (people stand around the phone at a similar height), and levels the directions,
 - places each clap at its estimated distance along that direction, and draws the result as arrows in the 3D view and a top view in the report,
+- requires the floor to **contain every clap position** (the people were inside the room). The positions are rescaled for every candidate room, because the distances are relative to its critical distance, and their uncertainty is sampled. This sets the floor's shape: before it the estimate was a 5.8 × 5.8 m square; with it, 9.4 × 4.3 m,
 - with ground truth, checks every direction **leave-one-out** against a phone orientation fitted on the other recordings,
 - stores a 1 ms map of where the first 80 ms of echoes come from (`room.json`).
 
@@ -182,6 +185,7 @@ roomrecon/            Python package  (python -m roomrecon)
 ├── analysis.py       event detection, RT60, DRR, stereo side, echoes
 ├── spatial.py        direction analysis of ambisonics
 ├── localize.py       source directions, "up" estimate, ground-truth direction check
+├── footprint.py      the floor must contain every clap position
 ├── model.py          shoebox room model, fit, source distance
 ├── calibration.py    calibration against ground truth
 ├── truth.py          ground-truth parsing and comparison
@@ -203,7 +207,7 @@ assets/               banner and logos
 
 ## Limitations
 
-- **Floor length and width cannot be measured from these recordings**, with or without Spatial Audio. The sounds were made far from the phone (4–7 m against a ~0.6 m critical distance), so no individual wall echoes survive.
+- **Floor length and width are approximate.** No individual wall echoes survive in these recordings: the sounds were made 4–7 m from the phone, against a ~0.6 m critical distance. The floor's shape comes from where the claps were heard, so it depends on how far around the room the claps spread. Its size comes from the reverberation time, which changes little with floor size under a low ceiling.
 - **Distance to the person is rough**, for the same reason. The program flags it as low confidence.
 - **Directions are approximate** (about 27° median error), and "up" without ground truth is only good to about 30°.
 - Low-frequency "room mode" peaks in phone recordings turned out to be device and background noise. They are off by default (`--use-modes`).

@@ -26,7 +26,7 @@ def load_calibration():
     return None
 
 
-def run_calibration(analyses, rt, modes, flutter, truth, args):
+def run_calibration(analyses, rt, modes, flutter, truth, args, footprint=None):
     """Fit corrections to a room with known geometry and save them.
 
     Default ("general") mode keeps only what transfers to other rooms: the source-distance correction.
@@ -38,8 +38,13 @@ def run_calibration(analyses, rt, modes, flutter, truth, args):
         sys.exit(f"Calibration needs at least 'room' in {args.truth}")
     rt_mid = RoomModel(rt, modes, flutter).rt_mid
 
+    def model():
+        m = RoomModel(rt, modes, flutter)
+        m.footprint = footprint
+        return m
+
     print("Calibration: fitting with generic priors...")
-    L_before, samples, alternatives = fit_room(RoomModel(rt, modes, flutter), args.seed)
+    L_before, samples, alternatives = fit_room(model(), args.seed)
     locate_sources(analyses, L_before, rt_mid)
     before = {a.name: a.distance_m for a in analyses if a.distance_m}
     L = L_before
@@ -54,7 +59,7 @@ def run_calibration(analyses, rt, modes, flutter, truth, args):
         }
         config.apply_calibration(cal)
         print("Calibration: fitting with this room's priors (--same-room)...")
-        L, samples, alternatives = fit_room(RoomModel(rt, modes, flutter), args.seed)
+        L, samples, alternatives = fit_room(model(), args.seed)
         locate_sources(analyses, L, rt_mid)
     else:
         cal = {"prior_length": list(settings.prior_length), "prior_width": list(settings.prior_width),
