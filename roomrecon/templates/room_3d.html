@@ -237,13 +237,29 @@
     grid.material.transparent = true; grid.material.opacity = 0.6;
     G("grid").add(grid);
 
-    G("est").add(box(est, cEst, { fill: 0.07 }));
-    label(`${E.length_m.toFixed(2)} m`, longOnX ? [est[0] / 2, 0.05, -0.35] : [-0.5, 0.05, est[2] / 2], cEst);
-    label(`${E.width_m.toFixed(2)} m`, longOnX ? [-0.5, 0.05, est[2] / 2] : [est[0] / 2, 0.05, -0.35], cEst);
-    label(`${E.height_m.toFixed(2)} m`, [-0.35, est[1] / 2, -0.35], cEst);
+    // Place the estimated room the way the model fitted it: around the phone and the positions the
+    // sounds were heard from (the floor must contain them). Without positions it starts at the origin.
+    let cx = est[0] / 2, cz = est[2] / 2;
+    if (T && T.phone) {
+      const pts = [[T.phone[0], T.phone[2]]];
+      D.recordings.forEach(r => {
+        if (r.dir_scene && r.dist_est) pts.push([T.phone[0] + r.dir_scene[0] * r.dist_est, T.phone[2] + r.dir_scene[2] * r.dist_est]);
+      });
+      if (pts.length > 1) {
+        const xs = pts.map(p => p[0]), zs = pts.map(p => p[1]);
+        cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+        cz = (Math.min(...zs) + Math.max(...zs)) / 2;
+      }
+    }
+    const placed = size => { const g = box(size, cEst, size === est ? { fill: 0.07 } : { dashed: true }); g.position.set(cx, size[1] / 2, cz); return g; };
+    const x0 = cx - est[0] / 2, z0 = cz - est[2] / 2;
+    G("est").add(placed(est));
+    label(`${E.length_m.toFixed(2)} m`, longOnX ? [cx, 0.05, z0 - 0.35] : [x0 - 0.5, 0.05, cz], cEst);
+    label(`${E.width_m.toFixed(2)} m`, longOnX ? [x0 - 0.5, 0.05, cz] : [cx, 0.05, z0 - 0.35], cEst);
+    label(`${E.height_m.toFixed(2)} m`, [x0 - 0.35, est[1] / 2, z0 - 0.35], cEst);
 
-    G("unc").add(box(scale3([ci.length[0], ci.width[0], ci.height[0]]).map((v, i) => v), cEst, { dashed: true }));
-    G("unc").add(box(scale3([ci.length[1], ci.width[1], ci.height[1]]), cEst, { dashed: true }));
+    G("unc").add(placed(scale3([ci.length[0], ci.width[0], ci.height[0]])));
+    G("unc").add(placed(scale3([ci.length[1], ci.width[1], ci.height[1]])));
 
     if (T) {
       G("truth").add(box(T.room, cTruth, {}));
